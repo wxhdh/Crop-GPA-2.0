@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+
+if __name__ == "__main__":
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    import argparse, sys
+    programname = sys.argv[0]
+    parser = argparse.ArgumentParser(description='Predict DNA shapes for any sequences. Input can be one single sequence or a FILE containing multiple sequences.\n\nFILE format: \nSEQ1\nSEQ2\nSEQ3\n...\n\nExamples:\npython '+programname+' --seq AAGGTAGT --feature MGW\
+        \npython '+programname+'.py --file seq.txt --feature Roll --output seq_Roll.txt', formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("--feature", dest = "feature", default = "MGW", help = "Specify which DNA shape feature to be predicted. [Default is MGW (minor groove width), other options: Shear, Stretch, Stagger, Buckle, ProT, Opening, Shift, Slide, Rise, Tilt, Roll, HelT]. Use FEATURE-FL to predict fluctuation values.")
+    parser.add_argument("--seq", dest = "seq", help = "Specify the sequence to be predicted.")
+    parser.add_argument("--file",dest = "file", help = "If no --seq is provided, use --file to read in all sequences.")
+    parser.add_argument("--layer", default=4, dest = "layer", type = int, help = "Select output layer number (0 to 7). Choose bigger number if you want to evaluate longer range effects from flanking regions. Don't change this parameter if you are not sure. [Default is 4].")
+    parser.add_argument("--output", dest = "output", default = "stdout", help = "Specify where the predictions will be written to. [Defualt is stdout]")
+    parser.add_argument("--batch_size", dest = "batch_size", default=2048, type = int, help = "If --file is provided, use this parameter to adjust parallel computing maximum. [Default is 2048] use higher values to speed up your prediction subject to your CPU/mem resources.")
+    parser.add_argument("--gpu", dest = "gpu", action = "store_true", help = "Use --gpu if you have available GPUs, and are predicting a file, make sure CUDA, CuDNN are installed correctly.")
+    parser.add_argument("--showseq", dest = "showseq", action = "store_true", help = "Use --showseq if you want to rewrite the sequence in front of your prediction.")
+    args = parser.parse_args()
+
+    from deepDNAshape import predictor
+    mode = "cpu" if args.gpu else "gpu"
+    myPredictor = predictor.predictor(mode = mode)
+    if args.seq:
+        prediction = list(map(str, myPredictor.predict(args.feature, args.seq, args.layer)))
+        if args.showseq:
+            sys.stdout.write(args.seq + " ")
+        sys.stdout.write(" ".join(prediction) + "\n")
+    elif args.file:
+        outputfa = False
+        if args.output == "stdout":
+            usefile = False
+            fout = sys.stdout
+        else:
+            usefile = True
+            if args.output.endswith(".fa") or args.output.endswith(".fasta"):
+                outputfa = True
+            fout = open(args.output, "w")
+            
+        data = []
+        if args.file.endswith(".fa") or args.file.endswith(".fasta"):
+            with open(args.file) as fin:
+                seqname = ""
+                storedSeq = ""
+                for line in fin:
+                    if len(line) > 0:
+                        if line[0] == ">":
+                            if seqname != "":
+                                data.append((seqname, storedSeq))
+                            seqname = line
+                            storedSeq = ""
+                        else:
+                            storedSeq += line.strip()
+                if storedSeq != "":
+                    data.append((seqname, storedSeq))
+        else:
+            with open(args.file) as fin:
+                index = 0
+                for seq in fin:
+                    data.append((">" + str(index) + "\n", seq.strip()))
+
+        #Predict batch and output
+        seqBatch = []
+        seqnames = []
+        for seqname, seq in data:
+            seqnames.append(seqname)
+            seqBatch.append(seq.strip())
+            if len(seqBatch) == args.batch_size:
+                prediction = myPredictor.predictBatch(args.feature, seqBatch, args.layer)
+                for i, seq in enumerate(seqBatch):
+                    if outputfa:
+                        fout.write(seqnames[i])
+                        if args.showseq:
+                            fout.write(seq + ",")
+                        fout.write(",".join(list(map(str, prediction[i]))) + "\n")
+                    else:
+                        if args.showseq:
+                            fout.write(seq + " ")
+                        fout.write(" ".join(list(map(str, prediction[i]))) + "\n")
+                seqBatch = []
+                seqnames = []
+        if seqBatch != []:
+            prediction = myPredictor.predictBatch(args.feature, seqBatch, args.layer)
+            for i, seq in enumerate(seqBatch):
+                if outputfa:
+                    fout.write(seqnames[i])
+                    if args.showseq:
+                        fout.write(seq + ",")
+                    fout.write(",".join(list(map(str, prediction[i]))) + "\n")
+                else:
+                    if args.showseq:
+                        fout.write(seq + " ")
+                    fout.write(" ".join(list(map(str, prediction[i]))) + "\n")
+
+        if usefile:
+            fout.close()
+    else:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
