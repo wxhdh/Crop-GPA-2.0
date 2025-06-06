@@ -6,17 +6,17 @@ Crop-GPA 2.0 is a deep-learning-based cross-species prediction framework for tra
 
 ## Feature 
 
-* Feature/Onehot.py:DNA feature extraction based on One-hot encoding
-* Feature/DNA2vec.py:Vector representation method for DNA sequences
-* Feature/DNABERT.py:DNA language model feature extraction based on BERT
-* Feature/DNAshape.py:DNA structural feature extraction 
+* Feature/Onehot.py: DNA feature extraction based on One-hot encoding
+* Feature/DNA2vec.py: Vector representation method for DNA sequences
+* Feature/DNABERT.py: DNA language model feature extraction based on BERT
+* Feature/DNAshape.py: DNA structural feature extraction 
 
 
 ## Model
 
-* Model/Pre-training.py:Implementation of cross-species pre-training model
-* Model/Fine-tune.py:Fine-tuning module for specific traits
-* Model/Fusion.py:Multi-model branch fusion strategy
+* Model/Pre-training.py: Implementation of cross-species pre-training model
+* Model/Fine-tune.py: Fine-tuning module for specific traits
+* Model/Fusion.py: Multi-model branch fusion strategy
 
 ## Setup environment
 
