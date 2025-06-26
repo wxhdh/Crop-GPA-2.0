@@ -63,11 +63,11 @@ def calculate_metrics(y_true, y_pred_proba):
     }
 
 input_folder_path = "./Model/Data/Rice_yield.csv"
-output_folder_path = "./models"
+output_folder_path = "./Fusion"
 os.makedirs(output_folder_path, exist_ok=True)
 
-model_path1 = "./Fine-tune/model1.h5"
-model_path2 = "./Fine-tune/model2.h5"
+model_path1 = "./Fine-model1.h5"
+model_path2 = "./Fine-model2.h5"
 
 base1 = load_model(model_path1)
 layer_name1 = base1.layers[-4].name
@@ -199,7 +199,7 @@ for file_name in os.listdir(input_folder_path):
     for metric, value in best_fold_metrics.items():
         print(f"    {metric}: {value:.4f}")
 
-    model_name = os.path.splitext(file_name)[0] + ".h5"
+    model_name ="Fusion-model.h5"
     save_path = os.path.join(output_folder_path, model_name)
     best_fold_model.save(save_path)
     print(f"  Saved best model: {save_path}")

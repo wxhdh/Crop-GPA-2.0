@@ -51,7 +51,7 @@ def calculate_metrics(y_true, y_pred_proba):
 
 
 input_folder_path = "./Model/Data/Rice_yield.csv"       # Folder containing input .csv files
-output_folder_path = "./models"    # Folder to save the best model
+output_folder_path = "./Fine-tune"    # Folder to save the best model
 os.makedirs(output_folder_path, exist_ok=True)
 
 # Path to pretrained model
@@ -65,21 +65,17 @@ for file_name in os.listdir(input_folder_path):
     data_path = os.path.join(input_folder_path, file_name)
     print(f"\nProcessing file: {file_name}")
 
-    # Load new dataset
     raw_data = pd.read_csv(data_path, header=None).values
-    num_samples = raw_data.shape[0]
-    X = raw_data[:, :-1]
-    y = raw_data[:, -1].astype(int)
+    print(f"  Data shape: {raw_data.shape}")
 
-    # Skip files with insufficient features
-    if X.shape[1] < 1623:
-        print("  Skipped: insufficient feature columns.")
+    if raw_data.shape[1] != 1623:
+        print(f"  Skipped: expected 1623 features, got {raw_data.shape[1]}.")
         continue
-
-    # Split into training and validation sets
-    train_X, valid_X, train_y, valid_y = train_test_split(
-        X, y, test_size=0.2, random_state=SEED
-    )
+    X = raw_data
+    num_samples = len(X)
+    half = num_samples // 2
+    y = np.array([1] * half + [0] * half)
+    print(f"  Labels generated: 1s={half}, 0s={num_samples - half}")
 
     # Shuffle utility function
     def shuffleData(aX, ay):
@@ -186,7 +182,7 @@ for file_name in os.listdir(input_folder_path):
     for k, v in best_fold_metrics.items():
         print(f"    {k}: {v:.4f}")
 
-    model_name = os.path.splitext(file_name)[0] + ".h5"
+    model_name ="Fine-model.h5"
     save_path = os.path.join(output_folder_path, model_name)
     best_fold_model.save(save_path)
     print(f"  Saved best model to: {save_path}\n")

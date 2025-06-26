@@ -258,8 +258,6 @@ for data_file in data_files:
         'model_save_path': f"{output_name}_model.h5"
     }
 
-
-
     import gc
     del model
     gc.collect()
