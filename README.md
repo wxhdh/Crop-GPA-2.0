@@ -5,7 +5,7 @@
 Crop-GPA 2.0 is a deep-learning-based cross-species prediction framework for trait-associated single nucleotide polymorphisms (TA-SNPs). By integrating genotype-phenotype association (GPA) data from genome-wide association studies (GWAS), it adopts a transfer learning strategy of "pre-training-fine-tuning-model fusion" to achieve high-precision prediction of agronomy-related SNPs. The framework is applied to traits with limited training data such as Trait A and Trait B, successfully covering genome-wide TA-SNP prediction for 10 major crops and 8 key agronomic traits.
 
 ## Frameworks
-![Framework](Image/Crop-GPA 2.0.png)
+![Framework](Image/Crop-GPA-2.0.png)
 
 
 ## Dataset
