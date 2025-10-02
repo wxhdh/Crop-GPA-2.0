@@ -10,6 +10,9 @@ Crop-GPA 2.0 is a deep-learning-based cross-species prediction framework for tra
 
 ## Dataset
 The full dataset is not provided in the code. If you wish to use it, please download and process it from https://ngdc.cncb.ac.cn/gwas/ on your own, then place it in the "Data" directory.
+*multiple species.csv & Rice.csv：Contain cross-species and single-species related data, used for the pretraining stage.
+*Rice_yield.fasta：Provides raw DNA sequences for generating One-hot, DNA2Vec, DNABERT, and DNAshape embedding features.
+*Rice_yield.csv：Contains rice yield trait data, used for the fine-tuning stage and model fusion stage.
 
 ## System Requirements
 The source code was developed in Python 3.8 using TensorFlow 2.6.0. The required Python dependencies are listed below. Crop-GPA 2.0 is supported on any standard computer and operating system (Windows/macOS/Linux) with enough RAM to run. There are no additional non-standard hardware requirements.
