@@ -1,3 +1,4 @@
+import gc
 import os
 import random
 import numpy as np
@@ -5,190 +6,231 @@ import pandas as pd
 from keras.callbacks import EarlyStopping
 from keras.models import load_model
 from sklearn.model_selection import train_test_split, KFold
-from sklearn.metrics import roc_auc_score, average_precision_score, matthews_corrcoef, f1_score, precision_score, recall_score, confusion_matrix, accuracy_score
+from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, matthews_corrcoef, average_precision_score, f1_score, confusion_matrix, accuracy_score, precision_score, recall_score
 import tensorflow as tf
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
-import gc
 
-# Set global random seed for reproducibility
 SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 
-def calculate_metrics(y_true, y_pred_proba):
-    """
-    Compute various binary classification metrics
-    """
-    y_pred = (y_pred_proba >= 0.5).astype(int).flatten()
 
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
-    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
-    f1 = f1_score(y_true, y_pred) if len(np.unique(y_true)) > 1 else 0
-    mcc = matthews_corrcoef(y_true, y_pred) if len(np.unique(y_true)) > 1 else 0
-    precision = precision_score(y_true, y_pred) if (tp + fp) > 0 else 0
-    recall = recall_score(y_true, y_pred) if (tp + fn) > 0 else 0
-    accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
-    auc_score = roc_auc_score(y_true, y_pred_proba) if len(np.unique(y_true)) > 1 else 0
-    aupr = average_precision_score(y_true, y_pred_proba) if len(np.unique(y_true)) > 1 else 0
+def calculate_metrics(y_true, y_pred, y_pred_proba):
+    TP = np.sum((y_pred >= 0.5) & (y_true == 1))
+    TN = np.sum((y_pred < 0.5) & (y_true == 0))
+    FP = np.sum((y_pred >= 0.5) & (y_true == 0))
+    FN = np.sum((y_pred < 0.5) & (y_true == 1))
 
-    return {
-        'TP': tp,
-        'TN': tn,
-        'FP': fp,
-        'FN': fn,
+    sensitivity = TP / (TP + FN) if (TP + FN) > 0 else 0
+    specificity = TN / (TN + FP) if (TN + FP) > 0 else 0
+    f1 = 2 * TP / (2 * TP + FP + FN) if (2 * TP + FP + FN) > 0 else 0
+    mcc = matthews_corrcoef(y_true, y_pred) if len(set(y_true)) > 1 else 0
+
+    precision, recall, _ = precision_recall_curve(y_true, y_pred_proba)
+    aupr = auc(recall, precision)
+    auc_score = roc_auc_score(y_true, y_pred_proba)
+    accuracy = (TP + TN) / (TP + TN + FP + FN) if (TP + TN + FP + FN) > 0 else 0
+    precision_score_val = TP / (TP + FP) if (TP + FP) > 0 else 0
+
+    performance_metrics = {
+        'TP': TP,
+        'TN': TN,
+        'FP': FP,
+        'FN': FN,
         'Sensitivity': sensitivity,
         'Specificity': specificity,
         'F1 Score': f1,
         'MCC': mcc,
-        'AUC': auc_score,
         'AUPR': aupr,
-        'Precision': precision,
-        'Recall': recall,
+        'AUC': auc_score,
+        'Precision': precision_score_val,
         'Accuracy': accuracy
     }
+    return performance_metrics
 
 
-input_folder_path = "./Model/Data/Rice_yield.csv"       # Folder containing input .csv files
-output_folder_path = "./Fine-tune"    # Folder to save the best model
+input_folder_path = "./Model/Data/Rice_yield.csv"
+output_folder_path = "./Fine-tune"
 os.makedirs(output_folder_path, exist_ok=True)
 
-# Path to pretrained model
-pretrained_model_path = "./pretrained/Pre-model.h5"
+pretrained_model_path = "./Pre-model.h5"
+
+best_hyperparameters = []
+
+file_name = os.path.basename(input_folder_path)
+input_file_path = input_folder_path
+
+new_input_data = pd.read_csv(input_file_path, header=None)
+new_X = new_input_data.values
+new_y = np.array([1] * (int(len(new_X)) // 2) + [0] * (int(len(new_X)) // 2))
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+train_X, valid_X, train_y, valid_y = train_test_split(new_X, new_y, test_size=0.2, random_state=42)
 
 
-for file_name in os.listdir(input_folder_path):
-    if not file_name.endswith(".csv"):
-        continue
+def shuffleData(X, y):
+    index = [i for i in range(len(X))]
+    random.seed(2510)
+    random.shuffle(index)
+    X = X[index]
+    y = y[index]
+    return X, y
 
-    data_path = os.path.join(input_folder_path, file_name)
-    print(f"\nProcessing file: {file_name}")
 
-    raw_data = pd.read_csv(data_path, header=None).values
-    print(f"  Data shape: {raw_data.shape}")
+train_X, train_y = shuffleData(train_X, train_y)
+valid_X, valid_y = shuffleData(valid_X, valid_y)
 
-    if raw_data.shape[1] != 1623:
-        print(f"  Skipped: expected 1623 features, got {raw_data.shape[1]}.")
-        continue
-    X = raw_data
-    num_samples = len(X)
-    half = num_samples // 2
-    y = np.array([1] * half + [0] * half)
-    print(f"  Labels generated: 1s={half}, 0s={num_samples - half}")
 
-    # Shuffle utility function
-    def shuffleData(aX, ay):
-        idx = list(range(len(aX)))
-        random.seed(SEED)
-        random.shuffle(idx)
-        return aX[idx], ay[idx]
+def fine_tune_objective(params):
+    learning_rate = params['learning_rate']
+    batch_size = int(params['batch_size'])
+    epochs = params['epochs']
 
-    # Shuffle training and validation data
-    train_X, train_y = shuffleData(train_X, train_y)
-    valid_X, valid_y = shuffleData(valid_X, valid_y)
-
-    # Load pretrained model and freeze early layers
-    base_model = load_model(pretrained_model_path)
-    for layer in base_model.layers[:-5]:
+    model = load_model(pretrained_model_path)
+    for layer in model.layers[:-5]:
         layer.trainable = False
 
-    # Define objective function for Hyperopt
-    def fine_tune_objective(params):
-        lr = params["learning_rate"]
-        bs = int(params["batch_size"])
-        ep = int(params["epochs"])
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['binary_accuracy'])
 
-        # Reload model and set up training
-        model = load_model(pretrained_model_path)
-        for layer in model.layers[:-5]:
-            layer.trainable = False
+    history = model.fit(
+        train_X, train_y,
+        validation_data=(valid_X, valid_y),
+        epochs=epochs,
+        batch_size=batch_size,
+        callbacks=[EarlyStopping(monitor='val_loss', patience=10, verbose=0, restore_best_weights=True)],
+        verbose=0
+    )
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-        model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["binary_accuracy"])
+    val_loss = min(history.history['val_loss'])
+    del model
+    tf.keras.backend.clear_session()
+    gc.collect()
+    return {'loss': val_loss, 'status': STATUS_OK}
 
-        history = model.fit(
-            train_X, train_y,
-            validation_data=(valid_X, valid_y),
-            epochs=ep,
-            batch_size=bs,
-            callbacks=[EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True)],
-            verbose=0
-        )
 
-        val_loss = history.history['val_loss'][-1]
-        tf.keras.backend.clear_session()
-        return {"loss": val_loss, "status": STATUS_OK}
+fine_tune_space = {
+    'learning_rate': hp.loguniform('learning_rate', np.log(1e-5), np.log(1e-2)),
+    'batch_size': hp.choice('batch_size', [16, 32, 64]),
+    'epochs': hp.choice('epochs', [10, 30, 50])
+}
 
-    # Define hyperparameter search space
-    fine_tune_space = {
-        "learning_rate": hp.loguniform("learning_rate", np.log(1e-5), np.log(1e-2)),
-        "batch_size": hp.choice("batch_size", [16, 32, 64]),
-        "epochs": hp.choice("epochs", [10, 30, 50])
+trials = Trials()
+best = fmin(
+    fn=fine_tune_objective,
+    space=fine_tune_space,
+    algo=tpe.suggest,
+    max_evals=50,
+    trials=trials,
+    rstate=np.random.RandomState(42)
+)
+
+best_params = space_eval(fine_tune_space, best)
+print("Best hyperparameters:", best_params)
+
+best_learning_rate = best_params['learning_rate']
+best_batch_size = best_params['batch_size']
+best_epochs = best_params['epochs']
+
+fold_results = []
+for fold_idx, (train_index, valid_index) in enumerate(kf.split(new_X)):
+    print(f"Processing Fold {fold_idx + 1}/{kf.n_splits}")
+
+    train_X_fold, valid_X_fold = new_X[train_index], new_X[valid_index]
+    train_y_fold, valid_y_fold = new_y[train_index], new_y[valid_index]
+
+    train_X_fold, train_y_fold = shuffleData(train_X_fold, train_y_fold)
+    valid_X_fold, valid_y_fold = shuffleData(valid_X_fold, valid_y_fold)
+
+    model = load_model(pretrained_model_path)
+    for layer in model.layers[:-5]:
+        layer.trainable = False
+
+    optimizer = tf.keras.optimizers.Adam(learning_rate=best_learning_rate)
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['binary_accuracy'])
+
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
+
+    model.fit(
+        train_X_fold, train_y_fold,
+        validation_data=(valid_X_fold, valid_y_fold),
+        epochs=best_epochs,
+        batch_size=best_batch_size,
+        callbacks=[early_stopping],
+        verbose=1)
+
+    predictions_proba = model.predict(valid_X_fold)
+    predictions_bin = (predictions_proba > 0.5).astype(int).flatten()
+
+    metrics = calculate_metrics(
+        y_true=valid_y_fold,
+        y_pred=predictions_bin,
+        y_pred_proba=predictions_proba.flatten()
+    )
+
+    results_after = {
+        'Fold': fold_idx + 1,
+        'TP': metrics['TP'],
+        'TN': metrics['TN'],
+        'FP': metrics['FP'],
+        'FN': metrics['FN'],
+        'Accuracy': round(metrics['Accuracy'], 4),
+        'Precision': round(metrics['Precision'], 4),
+        'Sensitivity': round(metrics['Sensitivity'], 4),
+        'F1 Score': round(metrics['F1 Score'], 4),
+        'AUC': round(metrics['AUC'], 4),
+        'AUPR': round(metrics['AUPR'], 4),
+        'MCC': round(metrics['MCC'], 4),
+        'Specificity': round(metrics['Specificity'], 4)
     }
 
-    trials = Trials()
-    best_params = fmin(
-        fn=fine_tune_objective,
-        space=fine_tune_space,
-        algo=tpe.suggest,
-        max_evals=50,
-        trials=trials,
-        rstate=np.random.RandomState(SEED)
-    )
-    best_params = space_eval(fine_tune_space, best_params)
-    print("  Best hyperparameters:", best_params)
+    fold_results.append(results_after)
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=SEED)
-    best_fold_loss = np.inf
-    best_fold_model = None
-    best_fold_metrics = None
+    prediction_df = pd.DataFrame({
+        'True Label': valid_y_fold,
+        'Predicted Probability': predictions_proba.flatten(),
+        'Predicted Label': predictions_bin
+    })
+    prediction_file_name = os.path.splitext(file_name)[0] + f'_fold_{fold_idx + 1}_predictions.csv'
+    prediction_df.to_csv(os.path.join(output_folder_path, prediction_file_name), index=False)
 
-    for fold_idx, (train_idx, valid_idx) in enumerate(kf.split(X)):
-        X_train_fold, X_valid_fold = X[train_idx], X[valid_idx]
-        y_train_fold, y_valid_fold = y[train_idx], y[valid_idx]
-
-        X_train_fold, y_train_fold = shuffleData(X_train_fold, y_train_fold)
-        X_valid_fold, y_valid_fold = shuffleData(X_valid_fold, y_valid_fold)
-
-        model = load_model(pretrained_model_path)
-        for layer in model.layers[:-5]:
-            layer.trainable = False
-
-        optimizer = tf.keras.optimizers.Adam(learning_rate=best_params["learning_rate"])
-        model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["binary_accuracy"])
-
-        history = model.fit(
-            X_train_fold, y_train_fold,
-            validation_data=(X_valid_fold, y_valid_fold),
-            epochs=best_params["epochs"],
-            batch_size=best_params["batch_size"],
-            callbacks=[EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True)],
-            verbose=0
-        )
-
-        val_loss = history.history['val_loss'][-1]
-
-        if val_loss < best_fold_loss:
-            best_fold_loss = val_loss
-            best_fold_model = model
-            y_valid_proba = model.predict(X_valid_fold, batch_size=best_params["batch_size"], verbose=0)
-            best_fold_metrics = calculate_metrics(y_valid_fold, y_valid_proba)
-
-        tf.keras.backend.clear_session()
-        gc.collect()
-
-    print("  Best fold metrics based on validation loss:")
-    for k, v in best_fold_metrics.items():
-        print(f"    {k}: {v:.4f}")
-
-    model_name ="Fine-model.h5"
-    save_path = os.path.join(output_folder_path, model_name)
-    best_fold_model.save(save_path)
-    print(f"  Saved best model to: {save_path}\n")
-
-    del best_fold_model, best_fold_metrics
-    gc.collect()
+    del model, train_X_fold, valid_X_fold, train_y_fold, valid_y_fold
     tf.keras.backend.clear_session()
+    gc.collect()
 
-print("Fine-tuning completed. One .h5 file generated per input CSV with best hyperparameters and metrics printed.")
+df = pd.DataFrame(fold_results)
+df.loc['Mean'] = df.mean(numeric_only=True)
+df.loc['Std'] = df.std(numeric_only=True)
+
+output_file_name = os.path.splitext(file_name)[0] + '_kfold_results.xlsx'
+df.to_excel(os.path.join(output_folder_path, output_file_name), index=True, engine='openpyxl')
+
+print("Training final model on the full dataset with best hyperparameters...")
+
+final_model = load_model(pretrained_model_path)
+for layer in final_model.layers[:-5]:
+    layer.trainable = False
+
+final_optimizer = tf.keras.optimizers.Adam(learning_rate=best_learning_rate)
+final_model.compile(optimizer=final_optimizer, loss='binary_crossentropy', metrics=['binary_accuracy'])
+
+final_model_path = os.path.join(output_folder_path, f"{os.path.splitext(file_name)[0]}_fine-tune_model.h5")
+
+final_model.fit(
+    new_X, new_y,
+    epochs=best_epochs,
+    batch_size=best_batch_size,
+    callbacks=[EarlyStopping(monitor='loss', patience=10, verbose=1, restore_best_weights=True)],
+    verbose=1
+)
+
+final_model.save(final_model_path)
+print(f"Final model saved at {final_model_path}")
+
+del final_model, df
+tf.keras.backend.clear_session()
+gc.collect()
+
+print("Fine-tuning completed. Only final models have been saved.")
