@@ -1,4 +1,4 @@
-# Crop-GPA 2.0：a pre-trained framework for crop genotype-phenotype associations prediction
+# Crop-GPA 2.0: A pre-trained framework with multi-scale fusion for crop genotype-phenotype association prediction
 
 ## Introduction
 
@@ -59,4 +59,4 @@ The Model directory contains the following scripts:
 * Model/Fusion.py: Fuse the two fine-tuned models to obtain the final prediction model.
 
 ## Citation
-If you use Crop-GPA 2.0, please cite our paper: Yujia Gao, Meng Wang, Mengjie Cai, Le Gao, Quan Lu and Zhenyu Yue*. Crop-GPA 2.0：a pre-trained framework for crop genotype-phenotype associations prediction, 2025, Submitted.
+If you use Crop-GPA 2.0, please cite our paper: Yujia Gao, Meng Wang, Mengjie Cai, Le Gao, Quan Lu and Zhenyu Yue*. Crop-GPA 2.0: A pre-trained framework with multi-scale fusion for crop genotype-phenotype association prediction, 2025, Submitted.
