@@ -1,4 +1,4 @@
-# Decoding genotype-phenotype relationships via a pre-trained deep learning model for crop genomic
+# Cross-species and trait-aware crop genomic representations hierarchically decode genotype-phenotype relationships
 
 ## Introduction
 
@@ -59,4 +59,4 @@ The Model directory contains the following scripts:
 * Model/Fusion.py: Fuse the two fine-tuned models to obtain the final prediction model.
 
 ## Citation
-If you use Crop-GPA 2.0, please cite our paper: Yujia Gao, Meng Wang, Mengjie Cai, Le Gao, Quan Lu and Zhenyu Yue*. Decoding genotype-phenotype relationships via a pre-trained deep learning model for crop genomic, 2025, Submitted.
+If you use Crop-GPA 2.0, please cite our paper: Yujia Gao, Meng Wang, Mengjie Cai, Le Gao, Quan Lu and Zhenyu Yue*. Cross-species and trait-aware crop genomic representations hierarchically decode genotype-phenotype relationships, 2026, Submitted.
