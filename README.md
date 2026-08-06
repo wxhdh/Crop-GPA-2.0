@@ -59,4 +59,4 @@ The Model directory contains the following scripts:
 * Model/Fusion.py: Fuse the two fine-tuned models to obtain the final prediction model.
 
 ## Citation
-If you use Crop-GPA 2.0, please cite our paper: Yujia Gao, Meng Wang, Mengjie Cai, Le Gao, Quan Lu and Zhenyu Yue*. Cross-species and trait-aware crop genomic representations hierarchically decode genotype-phenotype relationships, 2026, Submitted.
+If you use Crop-GPA 2.0, please cite our paper: Yujia Gao, Shiping Xie, Meng Wang, Mengjie Cai, Le Gao, Quan Lu, Zhenyu Yue, Crop-GPA 2.0: Decoding crop genotype-phenotype associations through cross-species and trait-aware hierarchical genomic representations, The Crop Journal, 2026, ISSN 2214-5141, https://doi.org/10.1016/j.cj.2026.07.005.
