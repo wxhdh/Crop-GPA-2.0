@@ -1,4 +1,4 @@
-# Cross-species and trait-aware crop genomic representations hierarchically decode genotype-phenotype relationships
+# Decoding crop genotype-phenotype associations through cross-species and trait-aware hierarchical genomic representations
 
 ## Introduction
 
